@@ -10,16 +10,18 @@ type SupabaseClient = ReturnType<typeof supabaseServer>;
 //
 // kie.ai chiama questo endpoint una volta per stage (callbackType: "text" ->
 // "first" -> "complete"). Solo "complete" ha l'audio pronto, annidato in
-// data.response.sunoData[]; le fasi precedenti vanno ignorate senza errore.
+// data.data[] (snake_case: task_id, audio_url, ...) — struttura confermata
+// dai payload reali ricevuti in produzione, non dalla doc generica.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     console.log('[audio/callback] payload ricevuto:', JSON.stringify(body));
 
-    const taskId = body?.data?.taskId || body?.data?.task_id || body?.taskId;
+    const taskId = body?.data?.task_id || body?.data?.taskId || body?.taskId;
     const callbackType = body?.data?.callbackType;
 
     if (!taskId) {
+      console.warn('[audio/callback] payload senza task_id, ignorato');
       return NextResponse.json({ received: true });
     }
 
@@ -30,7 +32,12 @@ export async function POST(req: NextRequest) {
       .eq('job_id', taskId)
       .single();
 
-    if (!audioVersion || audioVersion.status === 'completed' || audioVersion.status === 'failed') {
+    if (!audioVersion) {
+      console.warn(`[audio/callback] Nessuna audio_version trovata per job_id=${taskId}`);
+      return NextResponse.json({ received: true });
+    }
+
+    if (audioVersion.status === 'completed' || audioVersion.status === 'failed') {
       return NextResponse.json({ received: true });
     }
 
@@ -51,8 +58,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    const tracks: any[] = body?.data?.response?.sunoData || [];
+    const tracks: any[] = body?.data?.data || body?.data?.response?.sunoData || [];
     if (tracks.length === 0) {
+      console.warn(`[audio/callback] callbackType=complete ma nessuna traccia in data.data per task_id=${taskId}`);
       return NextResponse.json({ received: true });
     }
 
