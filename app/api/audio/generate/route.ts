@@ -24,6 +24,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // callBackUrl è obbligatorio per kie.ai: viene chiamato a fine
+    // generazione (vedi app/api/audio/callback/route.ts). Il polling in
+    // /api/audio/status/[id] resta comunque attivo come backup.
+    const callBackUrl = new URL('/api/audio/callback', req.url).toString();
+
     // Chiamata a kie.ai per avviare la generazione (endpoint stile Suno API)
     const kieResponse = await fetch('https://api.kie.ai/api/v1/generate', {
       method: 'POST',
@@ -36,6 +41,7 @@ export async function POST(req: NextRequest) {
         customMode: false,
         instrumental: !!instrumental,
         model: 'V4_5',
+        callBackUrl,
       }),
     });
 
@@ -48,7 +54,15 @@ export async function POST(req: NextRequest) {
     }
 
     const kieData = await kieResponse.json();
-    const jobId = kieData?.data?.taskId || kieData?.taskId;
+
+    if (kieData?.code !== 200) {
+      return NextResponse.json(
+        { error: `Errore kie.ai: ${kieData?.msg || 'richiesta rifiutata'}` },
+        { status: 502 }
+      );
+    }
+
+    const jobId = kieData?.data?.taskId;
 
     if (!jobId) {
       return NextResponse.json(
