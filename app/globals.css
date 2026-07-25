@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Oswald', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: #0a0a0d;
+  color: #ededea;
+}
+
+::selection {
+  background-color: #c9f31d;
+  color: #0a0a0d;
+}
+
+/* Scrollbar da studio: sottile, netta */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #111114;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c9f31d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus visibile per accessibilità tastiera */
+:focus-visible {
+  outline: 2px solid #c9f31d;
+  outline-offset: 2px;
+}
