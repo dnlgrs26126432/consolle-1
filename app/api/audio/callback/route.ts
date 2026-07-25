@@ -3,6 +3,11 @@ import { supabaseServer } from '@/lib/supabase';
 
 type SupabaseClient = ReturnType<typeof supabaseServer>;
 
+// Il default di Vercel (10s sul piano Hobby) può scadere prima che il
+// mirror dell'audio su Supabase Storage finisca, lasciando la riga
+// bloccata su "processing" senza nessun errore visibile.
+export const maxDuration = 60;
+
 // Webhook chiamato da kie.ai a fine generazione (vedi callBackUrl passato in
 // app/api/audio/generate/route.ts). Fa da backup al polling di
 // /api/audio/status/[id]: se il client non sta pollando, il completamento
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
       `${audioVersion.song_id}/${audioVersion.id}.mp3`
     );
 
-    await db
+    const { error: updateErr } = await db
       .from('audio_versions')
       .update({
         status: 'completed',
@@ -83,11 +88,18 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', audioVersion.id);
 
+    if (updateErr) {
+      console.error(
+        `[audio/callback] Update fallito per audio_version ${audioVersion.id}:`,
+        updateErr.message
+      );
+    }
+
     // kie.ai genera in genere più varianti per lo stesso task: quelle oltre
     // la prima diventano nuove take dello stesso brano, per non perderle.
     for (let i = 0; i < extraTracks.length; i++) {
       const track = extraTracks[i];
-      const { data: extraVersion } = await db
+      const { data: extraVersion, error: insertErr } = await db
         .from('audio_versions')
         .insert({
           song_id: audioVersion.song_id,
@@ -101,7 +113,13 @@ export async function POST(req: NextRequest) {
         .select()
         .single();
 
-      if (!extraVersion) continue;
+      if (insertErr || !extraVersion) {
+        console.error(
+          `[audio/callback] Insert variante extra fallito per job_id=${taskId}:`,
+          insertErr?.message
+        );
+        continue;
+      }
 
       const extraUrl = await mirrorTrackToStorage(
         db,
@@ -109,7 +127,7 @@ export async function POST(req: NextRequest) {
         `${audioVersion.song_id}/${extraVersion.id}.mp3`
       );
 
-      await db
+      const { error: extraUpdateErr } = await db
         .from('audio_versions')
         .update({
           status: 'completed',
@@ -119,6 +137,13 @@ export async function POST(req: NextRequest) {
           completed_at: new Date().toISOString(),
         })
         .eq('id', extraVersion.id);
+
+      if (extraUpdateErr) {
+        console.error(
+          `[audio/callback] Update variante extra fallito per audio_version ${extraVersion.id}:`,
+          extraUpdateErr.message
+        );
+      }
     }
 
     return NextResponse.json({ received: true });

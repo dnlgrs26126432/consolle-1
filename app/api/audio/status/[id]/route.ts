@@ -4,6 +4,10 @@ import { supabaseServer } from '@/lib/supabase';
 // Polling: controlla lo stato del job su kie.ai. Se completo, scarica
 // l'audio e lo salva su Supabase Storage (così non dipendiamo da URL
 // temporanei del provider), poi aggiorna la riga audio_versions.
+//
+// Il default di Vercel (10s sul piano Hobby) può scadere prima che il
+// mirror dell'audio finisca, lasciando la riga bloccata su "processing".
+export const maxDuration = 60;
 
 export async function GET(
   req: NextRequest,
@@ -35,9 +39,10 @@ export async function GET(
       { headers: { Authorization: `Bearer ${kieApiKey}` } }
     );
     const statusData = await statusRes.json();
+    console.log(`[audio/status/${params.id}] risposta record-info:`, JSON.stringify(statusData));
 
     const taskStatus = statusData?.data?.status;
-    const tracks = statusData?.data?.response?.sunoData || statusData?.data?.data;
+    const tracks = statusData?.data?.data || statusData?.data?.response?.sunoData;
 
     if (taskStatus === 'SUCCESS' && tracks?.length > 0) {
       const firstTrack = tracks[0];
@@ -65,7 +70,7 @@ export async function GET(
         console.error('Mirror storage fallito, uso URL esterno:', mirrorErr);
       }
 
-      const { data: updated } = await db
+      const { data: updated, error: updateErr } = await db
         .from('audio_versions')
         .update({
           status: 'completed',
@@ -78,11 +83,16 @@ export async function GET(
         .select()
         .single();
 
+      if (updateErr) {
+        console.error(`[audio/status/${params.id}] Update fallito:`, updateErr.message);
+        return NextResponse.json({ audio_version: audioVersion });
+      }
+
       return NextResponse.json({ audio_version: updated });
     }
 
     if (taskStatus === 'FAILED' || taskStatus === 'ERROR') {
-      const { data: updated } = await db
+      const { data: updated, error: updateErr } = await db
         .from('audio_versions')
         .update({
           status: 'failed',
@@ -91,6 +101,11 @@ export async function GET(
         .eq('id', params.id)
         .select()
         .single();
+
+      if (updateErr) {
+        console.error(`[audio/status/${params.id}] Update fallito:`, updateErr.message);
+        return NextResponse.json({ audio_version: audioVersion });
+      }
 
       return NextResponse.json({ audio_version: updated });
     }
