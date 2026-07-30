@@ -83,3 +83,17 @@ create trigger trg_songs_updated_at before update on songs
 insert into storage.buckets (id, name, public)
 values ('audio-generations', 'audio-generations', true)
 on conflict (id) do nothing;
+
+-- ============================================================
+-- Migrazione: nuovi parametri della console di generazione
+-- (genere personalizzato, energia, dark, durata target,
+-- strumentale, accordi/note armoniche, note di regia).
+-- Idempotente: puoi ri-eseguire lo script su un DB gia' esistente.
+-- ============================================================
+alter table songs add column if not exists custom_genre text;
+alter table songs add column if not exists energy integer;
+alter table songs add column if not exists is_dark boolean not null default false;
+alter table songs add column if not exists target_duration_seconds integer;
+alter table songs add column if not exists instrumental boolean not null default false;
+alter table songs add column if not exists chords_notes text;
+alter table songs add column if not exists director_notes text;
