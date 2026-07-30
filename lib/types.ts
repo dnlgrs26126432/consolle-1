@@ -33,6 +33,18 @@ export interface StructureSection {
   label?: string;
 }
 
+// Durata target del brano generato - usata dallo slider durata (30s/1min/2min/3min)
+export type DurationOption = 30 | 60 | 120 | 180;
+
+export const DURATION_OPTIONS: DurationOption[] = [30, 60, 120, 180];
+
+export const DURATION_LABELS: Record<DurationOption, string> = {
+  30: '30s',
+  60: '1 min',
+  120: '2 min',
+  180: '3 min',
+};
+
 export interface Project {
   id: string;
   name: string;
@@ -55,6 +67,20 @@ export interface Song {
   status: SongStatus;
   created_at: string;
   updated_at: string;
+  // Genere libero: si aggiunge al genere selezionato nel prompt di generazione
+  custom_genre?: string | null;
+  // Energia del brano, 0-100
+  energy?: number | null;
+  // Atmosfera dark on/off
+  is_dark?: boolean;
+  // Durata target in secondi (30/60/120/180)
+  target_duration_seconds?: DurationOption | null;
+  // Brano strumentale (senza voce)
+  instrumental?: boolean;
+  // Note libere su accordi/progressione armonica, per la scheda tecnica
+  chords_notes?: string | null;
+  // Note di regia: istruzioni aggiuntive per il producer
+  director_notes?: string | null;
 }
 
 export interface LyricsVersion {
