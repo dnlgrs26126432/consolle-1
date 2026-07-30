@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { RackPanel } from '@/components/ui/RackPanel';
 import { Pad } from '@/components/ui/Pad';
 import { GENRE_LABELS, type Genre, type Song } from '@/lib/types';
+import { pushRecentProject } from '@/lib/projectHistory';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -35,6 +36,8 @@ export default function ProjectPage() {
       if (project) {
         setProjectName(project.name);
         setSongs(project.songs || []);
+        // Storico progetti: registra l'apertura per poterla riaprire da dashboard
+        pushRecentProject(project.id, project.name);
       }
     } finally {
       setLoading(false);
