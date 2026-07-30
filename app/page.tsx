@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Disc3, FolderOpen } from 'lucide-react';
+import { Plus, Disc3, FolderOpen, History, X } from 'lucide-react';
 import { RackPanel } from '@/components/ui/RackPanel';
 import { Pad } from '@/components/ui/Pad';
 import { Waveform } from '@/components/ui/Waveform';
 import type { Project } from '@/lib/types';
+import { getRecentProjects, removeRecentProject, type RecentProject } from '@/lib/projectHistory';
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -15,9 +16,11 @@ export default function DashboardPage() {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
 
   useEffect(() => {
     loadProjects();
+    setRecentProjects(getRecentProjects());
   }, []);
 
   async function loadProjects() {
@@ -52,6 +55,10 @@ export default function DashboardPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  function forgetRecent(id: string) {
+    setRecentProjects(removeRecentProject(id));
   }
 
   return (
@@ -108,6 +115,35 @@ export default function DashboardPage() {
               <Pad variant="ghost" onClick={() => setShowNewProject(false)}>
                 Annulla
               </Pad>
+            </div>
+          </RackPanel>
+        )}
+
+        {recentProjects.length > 0 && (
+          <RackPanel
+            eyebrow="Storico"
+            title="Progetti recenti"
+            className="mb-8"
+            action={<History size={15} className="text-cement" />}
+          >
+            <div className="flex flex-wrap gap-2">
+              {recentProjects.map((rp) => (
+                <div
+                  key={rp.id}
+                  className="flex items-center gap-2 border border-stroke px-3 py-1.5 hover:border-acid transition-colors group"
+                >
+                  <Link href={`/projects/${rp.id}`} className="font-mono text-xs text-chalk group-hover:text-acid">
+                    {rp.name}
+                  </Link>
+                  <button
+                    onClick={() => forgetRecent(rp.id)}
+                    className="text-cement hover:text-signal transition-colors"
+                    aria-label="Rimuovi dallo storico"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
           </RackPanel>
         )}
