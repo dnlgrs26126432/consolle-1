@@ -17,10 +17,11 @@ const supabase = createClient(
 
 /**
  * OverlayRecorder
- * Registra voce/effetti in sincrono con la traccia base già generata,
- * poi permette di:
- *  - fare un mix semplice locale (nessuna chiamata AI, costo zero)
- *  - rigenerare via kie.ai (upload-extend / upload-cover / add-vocals)
+ * Flusso: registra voce/effetti in sincrono con la traccia base già
+ * generata -> mix semplice locale (nessuna AI, costo zero, obbligatorio
+ * prima del passo successivo) -> rifinitura opzionale via kie.ai
+ * (upload-cover) che parte dal mix, non dalla registrazione isolata,
+ * così l'AI preserva la performance reale invece di ignorarla.
  *
  * Props:
  *  - audioVersionId: id della audio_versions da sovrapporre
@@ -28,8 +29,9 @@ const supabase = createClient(
  *  - baseAudioUrl: url della traccia base già generata
  */
 export default function OverlayRecorder({ audioVersionId, songId, baseAudioUrl }) {
-  const [status, setStatus] = useState("idle"); // idle | recording | recorded | mixing | regenerating | done | error
+  const [status, setStatus] = useState("idle"); // idle | recording | recorded | mixing | mixed | regenerating | done | error
   const [overlayId, setOverlayId] = useState(null);
+  const [mixedUrl, setMixedUrl] = useState(null);
   const [resultUrl, setResultUrl] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
@@ -159,17 +161,22 @@ export default function OverlayRecorder({ audioVersionId, songId, baseAudioUrl }
         .update({ mixed_audio_url: publicUrl.publicUrl })
         .eq("id", overlayId);
 
-      setResultUrl(publicUrl.publicUrl);
-      setStatus("done");
+      // Il mix è già un risultato finale utilizzabile: la rifinitura AI
+      // (sotto) è un passo opzionale successivo, non un'alternativa.
+      setMixedUrl(publicUrl.publicUrl);
+      setStatus("mixed");
     } catch (err) {
       setErrorMsg("Errore mix: " + err.message);
       setStatus("error");
     }
   }, [baseAudioUrl, overlayId, songId]);
 
-  // --- Opzione B: rigenerazione via kie.ai (upload-extend / add-vocals) ---
+  // --- Opzione B: rifinitura AI del mix già fatto (upload-cover di kie.ai) ---
+  // "add_vocals" resta disponibile come parametro per generare voce AI ex
+  // novo, ma non è più il default: qui si parte sempre dal mix esistente,
+  // non da una voce sintetica scollegata dalla performance registrata.
   const regenerateWithAI = useCallback(
-    async (mode = "add_vocals") => {
+    async (mode = "cover") => {
       setStatus("regenerating");
       setErrorMsg(null);
 
@@ -254,21 +261,31 @@ export default function OverlayRecorder({ audioVersionId, songId, baseAudioUrl }
       {status === "recorded" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p style={{ color: COLORS.textDim, fontSize: 12 }}>
-            Registrazione salvata. Scegli come procedere:
+            Registrazione salvata.
           </p>
           <button onClick={mixSimple} style={buttonStyle(COLORS.limeDim, COLORS.bg)}>
             Mix semplice (istantaneo, nessun costo AI)
-          </button>
-          <button onClick={() => regenerateWithAI("add_vocals")} style={buttonStyle(COLORS.lime, COLORS.bg)}>
-            Rigenera con AI (kie.ai)
           </button>
         </div>
       )}
 
       {(status === "mixing" || status === "regenerating") && (
         <p style={{ color: COLORS.lime, fontSize: 12 }}>
-          {status === "mixing" ? "Mixaggio in corso…" : "Rigenerazione AI in corso, può richiedere un minuto…"}
+          {status === "mixing" ? "Mixaggio in corso…" : "Rifinitura AI in corso, può richiedere un minuto…"}
         </p>
+      )}
+
+      {status === "mixed" && mixedUrl && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ color: COLORS.lime, fontSize: 12 }}>Mix pronto:</p>
+          <audio controls src={mixedUrl} style={{ width: "100%" }} />
+          <p style={{ color: COLORS.textDim, fontSize: 12 }}>
+            Puoi tenere questo mix così com'è, oppure rifinirlo con l'AI mantenendo la tua performance:
+          </p>
+          <button onClick={() => regenerateWithAI("cover")} style={buttonStyle(COLORS.lime, COLORS.bg)}>
+            Rifinisci con AI (kie.ai)
+          </button>
+        </div>
       )}
 
       {status === "done" && resultUrl && (

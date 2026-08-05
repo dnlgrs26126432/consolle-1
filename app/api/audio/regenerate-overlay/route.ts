@@ -46,13 +46,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Overlay non trovato' }, { status: 404 });
     }
 
+    // "cover" rifinisce con l'AI il mix già fatto dall'utente (base +
+    // overlay), quindi deve partire dal file mixato, non dalla
+    // registrazione isolata — altrimenti kie.ai ignora la performance
+    // reale. "extend"/"add_vocals" restano sulla registrazione grezza.
+    if (mode === 'cover' && !overlay.mixed_audio_url) {
+      return NextResponse.json(
+        {
+          error:
+            'Nessun mix disponibile per questo overlay: esegui prima il mix semplice (mixSimple) per generare mixed_audio_url prima di rifinire con AI.',
+        },
+        { status: 400 }
+      );
+    }
+    const sourceUrl = mode === 'cover' ? overlay.mixed_audio_url : overlay.raw_audio_url;
+
     // Resta coerente con lo stile della traccia base: riusa i parametri
     // salvati quando quella traccia è stata generata.
     const baseParams = overlay.audio_versions?.generation_params || {};
     const callBackUrl = new URL('/api/audio/regenerate-overlay-callback', req.url).toString();
 
     const payload = {
-      uploadUrl: overlay.raw_audio_url,
+      uploadUrl: sourceUrl,
       model: baseParams.model || 'V4',
       style: baseParams.style,
       title: baseParams.title,
