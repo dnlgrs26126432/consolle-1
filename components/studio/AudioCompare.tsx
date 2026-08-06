@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Play, Pause, Star, RefreshCw, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { Waveform } from '@/components/ui/Waveform';
+import OverlayRecorder from '@/components/OverlayRecorder';
 import type { AudioVersion } from '@/lib/types';
 
 interface AudioCompareProps {
@@ -82,6 +83,12 @@ function AudioCard({
               {String(Math.round(version.duration_seconds % 60)).padStart(2, '0')}
             </span>
           )}
+
+          <OverlayRecorder
+            audioVersionId={version.id}
+            songId={version.song_id}
+            baseAudioUrl={version.audio_url}
+          />
         </>
       )}
 
